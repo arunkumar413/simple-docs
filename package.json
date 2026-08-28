@@ -1,0 +1,27 @@
+{
+  "name": "simple-docs",
+  "version": "1.0.0",
+  "description": "a simple docs tool based on markdown and react",
+  "keywords": [
+    "docs"
+  ],
+  "homepage": "https://github.com/arunkumar413/simple-docs#readme",
+  "bugs": {
+    "url": "https://github.com/arunkumar413/simple-docs/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arunkumar413/simple-docs.git"
+  },
+  "license": "ISC",
+  "author": "Arun Kumar",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "build": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "marked": "^15.0.12"
+  }
+}
