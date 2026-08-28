@@ -12,6 +12,7 @@ marked.setOptions({ gfm: true });
 function walk(dir, files = []) {
   if (!fs.existsSync(dir)) return files;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith(".")) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) walk(full, files);
     else files.push(full);
@@ -169,6 +170,29 @@ function sortTree(node) {
   node.children.forEach(sortTree);
 }
 
+function flattenPages(node, acc = []) {
+  if (!node.children) return acc;
+  for (const child of node.children) {
+    if (child.type === "page") acc.push(child);
+    else flattenPages(child, acc);
+  }
+  return acc;
+}
+
+function neighborsBySection(trees) {
+  const map = new Map();
+  for (const tree of Object.values(trees)) {
+    const sequence = flattenPages(tree);
+    sequence.forEach((page, index) => {
+      map.set(page.htmlRel, {
+        prev: sequence[index - 1] || null,
+        next: sequence[index + 1] || null,
+      });
+    });
+  }
+  return map;
+}
+
 function classAttr(...names) {
   const value = names.filter(Boolean).join(" ");
   return value ? ` class="${value}"` : "";
@@ -211,7 +235,22 @@ function renderSectionSwitch(fromAbs, currentSection) {
   return `<div class="section-switch">${links}</div>`;
 }
 
-function renderLayout({ title, currentSection, currentHtmlRel, trees, main, crumb }) {
+function renderPager(fromAbs, neighbors) {
+  if (!neighbors || (!neighbors.prev && !neighbors.next)) return "";
+
+  const link = (page, kind, label) => {
+    if (!page) return `<span></span>`;
+    const href = hrefBetween(fromAbs, path.join(OUT, page.htmlRel));
+    return `<a class="${kind}" href="${href}"><span>${label}</span><strong>${escapeHtml(page.name)}</strong></a>`;
+  };
+
+  return `<nav class="pager" aria-label="Page navigation">
+    ${link(neighbors.prev, "prev", "Previous")}
+    ${link(neighbors.next, "next", "Next")}
+  </nav>`;
+}
+
+function renderLayout({ title, currentSection, currentHtmlRel, trees, main, crumb, pager = "" }) {
   const fromAbs = path.join(OUT, currentHtmlRel);
   const homeHref = hrefBetween(fromAbs, path.join(OUT, "index.html"));
   const tree = currentSection ? trees[currentSection] : null;
@@ -243,6 +282,7 @@ function renderLayout({ title, currentSection, currentHtmlRel, trees, main, crum
       ${crumb ? `<p class="crumb">${crumb}</p>` : ""}
       <header><h1>${escapeHtml(title)}</h1></header>
       ${main}
+      ${pager}
     </main>
   </div>
 </body>
@@ -347,6 +387,8 @@ function build() {
     fs.copyFileSync(asset.from, dest);
   }
 
+  const neighbors = neighborsBySection(trees);
+
   for (const page of pages) {
     const fromAbs = path.join(OUT, page.htmlRel);
     const html = renderLayout({
@@ -356,6 +398,7 @@ function build() {
       trees,
       crumb: crumbFor(page.htmlRel, fromAbs),
       main: `<article>${page.body || "<p class=\"empty\">This page is empty.</p>"}</article>`,
+      pager: renderPager(fromAbs, neighbors.get(page.htmlRel)),
     });
     writeFile(fromAbs, html);
   }

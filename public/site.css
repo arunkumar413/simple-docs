@@ -213,6 +213,48 @@ article :not(pre) > code {
   color: var(--muted);
 }
 
+.pager {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 2.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.pager a {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--ink);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.pager a:hover {
+  text-decoration: none;
+  border-color: #e0c9a0;
+  background: var(--accent-soft);
+}
+
+.pager a span {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.pager a strong {
+  font-weight: 600;
+}
+
+.pager .next {
+  text-align: right;
+  justify-self: end;
+}
+
 @media (max-width: 840px) {
   .shell {
     grid-template-columns: 1fr;
