@@ -35,8 +35,21 @@ function humanize(name) {
   return name.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function parseOrderName(name) {
+  const match = String(name).match(/^(\d+)[-_.\s]+(.+)$/);
+  if (match) {
+    return { order: Number(match[1]), slug: match[2] };
+  }
+  return { order: Number.POSITIVE_INFINITY, slug: name };
+}
+
+function compareByOrder(a, b) {
+  if (a.order !== b.order) return a.order - b.order;
+  return a.sortName.localeCompare(b.sortName);
+}
+
 function parseMarkdownPage(md, fallback) {
-  const match = md.match(/^\s*#\s+(.+)$/m);
+  const match = md.match(/^\s*#{1,6}\s+(.+)$/m);
   const title = match ? match[1].trim() : humanize(fallback);
   const bodyMd = match ? md.replace(match[0], "").replace(/^\s+/, "") : md;
   return { title, body: marked.parse(bodyMd) };
@@ -65,13 +78,16 @@ function collectPages() {
       if (path.extname(file).toLowerCase() === ".md") {
         const md = fs.readFileSync(file, "utf8");
         const base = path.basename(file, ".md");
+        const { order, slug } = parseOrderName(base);
         const htmlRel = rel.replace(/\.md$/i, ".html");
-        const { title, body } = parseMarkdownPage(md, base);
+        const { title, body } = parseMarkdownPage(md, slug);
         pages.push({
           section,
           title,
           htmlRel,
           body,
+          order,
+          sortName: slug,
         });
       } else {
         assets.push({ from: file, rel });
@@ -113,7 +129,16 @@ function buildSectionTree(section, pages) {
       rel = `${rel}/${part}`;
       let child = node.children.find((c) => c.type === "dir" && c.name === part);
       if (!child) {
-        child = { type: "dir", name: part, rel, children: [] };
+        const { order, slug } = parseOrderName(part);
+        child = {
+          type: "dir",
+          name: part,
+          rel,
+          order,
+          sortName: slug,
+          label: humanize(slug),
+          children: [],
+        };
         node.children.push(child);
       }
       node = child;
@@ -129,6 +154,8 @@ function buildSectionTree(section, pages) {
       type: "page",
       name: page.title,
       htmlRel: page.htmlRel,
+      order: page.order,
+      sortName: page.sortName,
     });
   }
 
@@ -138,10 +165,7 @@ function buildSectionTree(section, pages) {
 
 function sortTree(node) {
   if (!node.children) return;
-  node.children.sort((a, b) => {
-    if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  node.children.sort(compareByOrder);
   node.children.forEach(sortTree);
 }
 
@@ -162,7 +186,7 @@ function renderTree(node, fromAbs, currentHtmlRel) {
         const href = hrefBetween(fromAbs, path.join(OUT, indexRel));
         const active = currentHtmlRel === indexRel ? "active" : "";
         return `<li>
-          <a${classAttr("dir-label", active)} href="${href}">${escapeHtml(humanize(child.name))}</a>
+          <a${classAttr("dir-label", active)} href="${href}">${escapeHtml(child.label)}</a>
           ${renderTree(child, fromAbs, currentHtmlRel)}
         </li>`;
       }
@@ -237,7 +261,7 @@ function crumbFor(htmlRel, fromAbs) {
     if (!part || part.endsWith(".html")) continue;
     acc = acc ? `${acc}/${part}` : part;
     const href = hrefBetween(fromAbs, path.join(OUT, acc, "index.html"));
-    crumbs.push(`<a href="${href}">${escapeHtml(humanize(part))}</a>`);
+    crumbs.push(`<a href="${href}">${escapeHtml(humanize(parseOrderName(part).slug))}</a>`);
   }
 
   return crumbs.join(" / ");
@@ -251,10 +275,14 @@ function childrenOfDir(dirRel, pages, directories) {
     const parent = path.posix.dirname(d);
     const parentKey = parent === "." ? "" : parent;
     if (parentKey === dirRel || (dirRel === "" && !d.includes("/"))) {
+      const basename = path.posix.basename(d);
+      const { order, slug } = parseOrderName(basename);
       items.push({
         kind: "directory",
-        name: path.posix.basename(d),
+        name: humanize(slug),
         hrefRel: `${d}/index.html`,
+        order,
+        sortName: slug,
       });
     }
   }
@@ -265,14 +293,13 @@ function childrenOfDir(dirRel, pages, directories) {
         kind: "page",
         name: page.title,
         hrefRel: page.htmlRel,
+        order: page.order,
+        sortName: page.sortName,
       });
     }
   }
 
-  items.sort((a, b) => {
-    if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
+  items.sort(compareByOrder);
 
   return items;
 }
@@ -286,7 +313,7 @@ function renderDirList(items, fromAbs) {
     .map((item) => {
       const href = hrefBetween(fromAbs, path.join(OUT, item.hrefRel));
       const kind = item.kind === "directory" ? "folder" : "page";
-      return `<li><a href="${href}">${escapeHtml(humanize(item.name))}<span class="kind">${kind}</span></a></li>`;
+      return `<li><a href="${href}">${escapeHtml(item.name)}<span class="kind">${kind}</span></a></li>`;
     })
     .join("\n");
 
@@ -340,7 +367,10 @@ function build() {
     if (occupied.has(htmlRel)) continue;
     const fromAbs = path.join(OUT, htmlRel);
     const section = dirRel.split("/")[0];
-    const title = dirRel === section ? humanize(section) : humanize(path.posix.basename(dirRel));
+    const title =
+      dirRel === section
+        ? humanize(section)
+        : humanize(parseOrderName(path.posix.basename(dirRel)).slug);
     const items = childrenOfDir(dirRel, pages, directories);
     const html = renderLayout({
       title,
