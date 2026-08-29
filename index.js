@@ -193,6 +193,11 @@ function neighborsBySection(trees) {
   return map;
 }
 
+function firstPageInTree(tree) {
+  const sequence = flattenPages(tree);
+  return sequence[0] || null;
+}
+
 function classAttr(...names) {
   const value = names.filter(Boolean).join(" ");
   return value ? ` class="${value}"` : "";
@@ -224,10 +229,15 @@ function renderTree(node, fromAbs, currentHtmlRel) {
   return `<ul class="tree">${items}</ul>`;
 }
 
-function renderSectionSwitch(fromAbs, currentSection) {
+function renderSectionSwitch(fromAbs, currentSection, trees) {
   const links = SECTIONS.map((section) => {
-    if (!fs.existsSync(path.join(ROOT, section))) return "";
-    const href = hrefBetween(fromAbs, path.join(OUT, section, "index.html"));
+    const tree = trees[section];
+    if (!tree) return "";
+    const first = firstPageInTree(tree);
+    const target = first
+      ? path.join(OUT, first.htmlRel)
+      : path.join(OUT, section, "index.html");
+    const href = hrefBetween(fromAbs, target);
     const active = section === currentSection ? "active" : "";
     return `<a${classAttr(active)} href="${href}">${escapeHtml(section)}</a>`;
   }).join("");
@@ -275,7 +285,7 @@ function renderLayout({ title, currentSection, currentHtmlRel, trees, main, crum
   <div class="shell">
     <aside class="sidebar">
       <a class="brand" href="${homeHref}">${SITE_NAME}</a>
-      ${renderSectionSwitch(fromAbs, currentSection)}
+      ${renderSectionSwitch(fromAbs, currentSection, trees)}
       ${sidebarNav}
     </aside>
     <main class="content">
@@ -288,6 +298,23 @@ function renderLayout({ title, currentSection, currentHtmlRel, trees, main, crum
 </body>
 </html>
 `;
+}
+
+function renderLanding(fromAbs, trees) {
+  const cards = SECTIONS.filter((section) => trees[section])
+    .map((section) => {
+      const first = firstPageInTree(trees[section]);
+      if (!first) return "";
+      const href = hrefBetween(fromAbs, path.join(OUT, first.htmlRel));
+      return `<a class="landing-card" href="${href}">
+        <span>${escapeHtml(section)}</span>
+        <strong>${escapeHtml(first.name)}</strong>
+      </a>`;
+    })
+    .join("");
+
+  return `<p>Choose a section to start reading.</p>
+  <div class="landing-grid">${cards}</div>`;
 }
 
 function crumbFor(htmlRel, fromAbs) {
@@ -427,11 +454,6 @@ function build() {
   }
 
   const homeAbs = path.join(OUT, "index.html");
-  const homeSections = SECTIONS.filter((s) => trees[s]).map((section) => ({
-    kind: "directory",
-    name: section,
-    hrefRel: `${section}/index.html`,
-  }));
   writeFile(
     homeAbs,
     renderLayout({
@@ -440,7 +462,7 @@ function build() {
       currentHtmlRel: "index.html",
       trees,
       crumb: "",
-      main: `<p>Documentation generated from <code>docs</code>, <code>blog</code>, and <code>tutorial</code>.</p>${renderDirList(homeSections, homeAbs)}`,
+      main: renderLanding(homeAbs, trees),
     })
   );
 

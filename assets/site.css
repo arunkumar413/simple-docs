@@ -209,8 +209,39 @@ article :not(pre) > code {
   margin-left: 0.5rem;
 }
 
-.empty {
+.landing-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+}
+
+.landing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+}
+
+.landing-card:hover {
+  text-decoration: none;
+  border-color: #e0c9a0;
+  background: var(--accent-soft);
+}
+
+.landing-card span {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted);
+}
+
+.landing-card strong {
+  font-size: 1.15rem;
+  font-weight: 600;
 }
 
 .pager {
